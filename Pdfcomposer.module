@@ -1,0 +1,145 @@
+<?php
+
+class Pdfcomposer extends Process implements Module {
+
+	public static function getModuleInfo() {
+
+		return array(
+			'title' => 'PDF Composer', 
+			'version' => 101, 
+			'summary' => 'Compose a PDF from selected site pages',
+			'href' => 'http://www.alasdairmonk.com',
+			'singular' => true, 
+			'autoload' => true, 
+			);
+	}
+
+  const adminPageName = 'create-pdf';
+  protected $parent = null;
+
+  public function init() {
+    parent::init();
+  }
+  
+  /**
+  * Do the main routing for this module 
+  *
+  */
+  public function ___execute($event) {
+    if($this->input->post->submit) {
+     return $this->generatePDF(); 
+		}else{
+      return $this->pageSelectForm()->render();
+    }
+	}
+  
+  /**
+  * Show the page selector form 
+  *
+  */ 
+  protected function pageSelectForm() {
+		$form = $this->modules->get("InputfieldForm"); 
+		$form->method = 'post';		
+
+    $f = $this->modules->get("InputfieldPageListSelectMultiple"); 
+		$f->name = 'pages';
+		$f->label = 'Pages';
+		$f->required = true; 
+		$f->description = "Select the pages to include...";
+		$form->add($f);
+
+    $this->addSubmit($form, 'Generate PDF'); 
+
+    return $form;
+  }
+
+  /**
+  * Do the pdf generation 
+  *
+  */
+  public function generatePDF() {
+    require('write_html.php');
+
+    // Start a new pdf
+    $pdf = new PDF_HTML();
+      
+    // Get our post variables and seperate into usable array
+    $selected_pages = explode(",", $this->input->post->pages[0]);
+    foreach ($selected_pages as $selected_page_id) {
+      $pdf->AddPage();
+      $pdf->SetFont('Arial','B',16);
+      $pdf->Cell(40,10, wire('pages')->get($selected_page_id)->title);
+        
+      $pdf->Ln(20);
+        
+      $pdf->SetFont('Arial','',11);
+      $pdf->WriteHTML(wire('pages')->get($selected_page_id)->body);
+    }
+
+    $pdf->Output();
+  }
+  
+  /**
+  * Install the module and create the page where it lives
+  *
+  */
+	public function ___install() {
+
+		if(ProcessWire::versionMajor == 2 && ProcessWire::versionMinor < 1) {
+			throw new WireException("This module requires ProcessWire 2.1 or newer"); 
+		}
+
+		$page = $this->getInstalledPage();
+		$this->message("Installed to {$page->path}"); 
+		if($page->parent->name == 'setup') $this->message("Click to your 'Setup' page to start using the PDF creator"); 
+	}
+
+	/**
+	 * Return the page that this Process is installed on 
+	 *
+	 */
+	protected function getInstalledPage() {
+
+		$admin = $this->pages->get($this->config->adminRootPageID); 
+		$parent = $admin->child("name=setup"); 
+		if(!$parent->id) $parent = $admin;
+		$page = $parent->child("name=" . self::adminPageName); 
+
+		if(!$page->id) { 	
+			$page = new Page();
+			$page->parent = $parent; 
+			$page->template = $this->templates->get('admin');
+			$page->name = self::adminPageName; 
+			$page->title = "PDF Composer";
+			$page->process = $this; 
+			$page->sort = $parent->numChildren;
+			$page->save();
+		}
+
+		return $page; 	
+	}
+
+	/**
+	 * Uninstall the module
+	 *
+	 */
+	public function ___uninstall() {
+		$page = $this->getInstalledPage();	
+		if($page->id) { 
+			$this->message("Removed {$page->path}");
+			$this->pages->delete($page); 
+		}
+	}
+
+  /**
+	 * Add a submit button, moved to a function so we don't have to do this twice
+	 *
+	 */
+	protected function addSubmit(InputfieldForm $form, $value = 'Submit') {
+		$f = $this->modules->get("InputfieldSubmit"); 
+		$f->name = 'submit';
+		$f->value = $value; 
+		$form->add($f); 
+	}
+
+}
