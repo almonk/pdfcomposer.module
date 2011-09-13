@@ -65,6 +65,7 @@ class Pdfcomposer extends Process implements Module {
       
     // Get our post variables and seperate into usable array
     $selected_pages = explode(",", $this->input->post->pages[0]);
+    
     foreach ($selected_pages as $selected_page_id) {
       $pdf->AddPage();
       $pdf->SetFont('Arial','B',16);
